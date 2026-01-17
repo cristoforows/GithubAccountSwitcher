@@ -1,0 +1,21 @@
+{
+  "profiles": [
+    {
+      "id": "work",
+      "displayName": "GitHub Work",
+      "gitUserName": "Work Name",
+      "gitUserEmail": "work@example.com",
+      "sshHostAliases": ["github-work"],
+      "sshIdentityFilePath": "~/.ssh/id_rsa_work"
+    },
+    {
+      "id": "personal",
+      "displayName": "GitHub Personal",
+      "gitUserName": "Personal Name",
+      "gitUserEmail": "personal@example.com",
+      "sshHostAliases": ["github-personal"],
+      "sshIdentityFilePath": "~/.ssh/id_rsa_personal"
+    }
+  ]
+}
+

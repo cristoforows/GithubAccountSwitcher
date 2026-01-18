@@ -9,9 +9,9 @@ enum SSHConfigEditorError: LocalizedError {
         switch self {
         case .invalidHomeDirectory:
             return "Home directory not found."
-        case let .readFailed(message):
+        case .readFailed(let message):
             return "Unable to read SSH config: \(message)"
-        case let .writeFailed(message):
+        case .writeFailed(let message):
             return "Unable to write SSH config: \(message)"
         }
     }
@@ -21,33 +21,10 @@ enum SSHConfigEditor {
     static func updateIdentityFile(forHosts hosts: [String], identityFilePath: String) throws {
         let fileURL = try sshConfigURL()
         let expandedIdentityPath = expandTilde(in: identityFilePath)
-        // #region agent log
-        DebugLogger.log(
-            hypothesisId: "D",
-            location: "SSHConfigEditor.swift:24",
-            message: "SSH config update start",
-            data: [
-                "path": fileURL.path,
-                "hosts": hosts.joined(separator: ","),
-                "identityPath": expandedIdentityPath
-            ]
-        )
-        // #endregion
 
         if !FileManager.default.fileExists(atPath: fileURL.path) {
-            try createSSHConfig(at: fileURL, forHosts: hosts, identityFilePath: expandedIdentityPath)
-            // #region agent log
-            DebugLogger.log(
-                hypothesisId: "D",
-                location: "SSHConfigEditor.swift:31",
-                message: "SSH config created",
-                data: [
-                    "path": fileURL.path,
-                    "hosts": hosts.joined(separator: ",")
-                ],
-                runId: "run2"
-            )
-            // #endregion
+            try createSSHConfig(
+                at: fileURL, forHosts: hosts, identityFilePath: expandedIdentityPath)
             return
         }
 
@@ -66,18 +43,6 @@ enum SSHConfigEditor {
 
         do {
             try updated.content.write(to: fileURL, atomically: true, encoding: .utf8)
-            // #region agent log
-            DebugLogger.log(
-                hypothesisId: "D",
-                location: "SSHConfigEditor.swift:49",
-                message: "SSH config updated",
-                data: [
-                    "path": fileURL.path,
-                    "didUpdate": updated.didUpdate ? "true" : "false"
-                ],
-                runId: "run2"
-            )
-            // #endregion
         } catch {
             throw SSHConfigEditorError.writeFailed(error.localizedDescription)
         }
@@ -99,7 +64,8 @@ enum SSHConfigEditor {
     ) throws {
         let directory = url.deletingLastPathComponent()
         if !FileManager.default.fileExists(atPath: directory.path) {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(
+                at: directory, withIntermediateDirectories: true)
         }
 
         var lines: [String] = []
@@ -108,6 +74,7 @@ enum SSHConfigEditor {
             lines.append("  HostName github.com")
             lines.append("  User git")
             lines.append("  IdentityFile \(identityFilePath)")
+            lines.append("  IdentitiesOnly yes")
             lines.append("")
         }
 
@@ -125,26 +92,53 @@ enum SSHConfigEditor {
         identityFilePath: String
     ) -> (content: String, didUpdate: Bool) {
         let targetHosts = Set(hosts)
-        let lines = content.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        let lines = content.split(separator: "\n", omittingEmptySubsequences: false).map(
+            String.init)
         var updatedLines: [String] = []
         var inTargetBlock = false
         var sawIdentityFile = false
+        var sawIdentitiesOnly = false
+        var matchedHostBlocks = 0
+        var updatedIdentityLines = 0
+        var appendedIdentityLines = 0
+        var updatedIdentitiesOnlyLines = 0
+        var appendedIdentitiesOnlyLines = 0
 
         for line in lines {
             if let hostNames = parseHostLine(line) {
                 if inTargetBlock && !sawIdentityFile {
                     updatedLines.append("  IdentityFile \(identityFilePath)")
+                    appendedIdentityLines += 1
+                }
+                if inTargetBlock && !sawIdentitiesOnly {
+                    updatedLines.append("  IdentitiesOnly yes")
+                    appendedIdentitiesOnlyLines += 1
                 }
 
                 inTargetBlock = !targetHosts.isDisjoint(with: hostNames)
+                if inTargetBlock {
+                    matchedHostBlocks += 1
+                }
                 sawIdentityFile = false
+                sawIdentitiesOnly = false
                 updatedLines.append(line)
                 continue
             }
 
-            if inTargetBlock, let updatedLine = updateIdentityLineIfNeeded(line, identityFilePath: identityFilePath) {
+            if inTargetBlock,
+                let updatedLine = updateIdentityLineIfNeeded(
+                    line, identityFilePath: identityFilePath)
+            {
                 updatedLines.append(updatedLine)
                 sawIdentityFile = true
+                updatedIdentityLines += 1
+                continue
+            }
+
+            if inTargetBlock, let updatedLine = updateIdentitiesOnlyLineIfNeeded(line) {
+                updatedLines.append(updatedLine)
+                sawIdentitiesOnly = true
+                updatedIdentitiesOnlyLines += 1
                 continue
             }
 
@@ -153,6 +147,11 @@ enum SSHConfigEditor {
 
         if inTargetBlock && !sawIdentityFile {
             updatedLines.append("  IdentityFile \(identityFilePath)")
+            appendedIdentityLines += 1
+        }
+        if inTargetBlock && !sawIdentitiesOnly {
+            updatedLines.append("  IdentitiesOnly yes")
+            appendedIdentitiesOnlyLines += 1
         }
 
         let hasTrailingNewline = content.hasSuffix("\n")
@@ -187,6 +186,16 @@ enum SSHConfigEditor {
         return "\(leadingWhitespace)IdentityFile \(identityFilePath)"
     }
 
+    private static func updateIdentitiesOnlyLineIfNeeded(_ line: String) -> String? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.lowercased().hasPrefix("identitiesonly ") else {
+            return nil
+        }
+
+        let leadingWhitespace = line.prefix { $0 == " " || $0 == "\t" }
+        return "\(leadingWhitespace)IdentitiesOnly yes"
+    }
+
     private static func expandTilde(in path: String) -> String {
         guard path.hasPrefix("~") else {
             return path
@@ -195,4 +204,3 @@ enum SSHConfigEditor {
         return (path as NSString).expandingTildeInPath
     }
 }
-

@@ -18,27 +18,7 @@ enum ConfigLoader {
         let urls = candidateConfigURLs()
         for url in urls {
             let exists = FileManager.default.fileExists(atPath: url.path)
-            // #region agent log
-            DebugLogger.log(
-                hypothesisId: "A",
-                location: "ConfigLoader.swift:27",
-                message: "Config file existence check",
-                data: [
-                    "path": url.path,
-                    "exists": exists ? "true" : "false",
-                ]
-            )
-            // #endregion
             guard exists else { continue }
-
-            // #region agent log
-            DebugLogger.log(
-                hypothesisId: "A",
-                location: "ConfigLoader.swift:37",
-                message: "Config path selected",
-                data: ["path": url.path]
-            )
-            // #endregion
 
             return loadProfiles(from: url)
         }
@@ -52,36 +32,12 @@ enum ConfigLoader {
             let decoder = JSONDecoder()
 
             if let list = try? decoder.decode([ConfigProfile].self, from: data) {
-                // #region agent log
-                DebugLogger.log(
-                    hypothesisId: "B",
-                    location: "ConfigLoader.swift:57",
-                    message: "Decoded config as array",
-                    data: ["count": String(list.count)]
-                )
-                // #endregion
                 return list.map(AccountProfile.init)
             }
 
             let wrapped = try decoder.decode(ConfigFile.self, from: data)
-            // #region agent log
-            DebugLogger.log(
-                hypothesisId: "B",
-                location: "ConfigLoader.swift:68",
-                message: "Decoded config as wrapped object",
-                data: ["count": String(wrapped.profiles.count)]
-            )
-            // #endregion
             return wrapped.profiles.map(AccountProfile.init)
         } catch {
-            // #region agent log
-            DebugLogger.log(
-                hypothesisId: "B",
-                location: "ConfigLoader.swift:75",
-                message: "Failed to decode config",
-                data: ["error": error.localizedDescription]
-            )
-            // #endregion
             return nil
         }
     }

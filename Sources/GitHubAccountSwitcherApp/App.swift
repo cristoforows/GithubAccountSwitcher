@@ -8,8 +8,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let selectedId = UserDefaults.standard.string(forKey: UserDefaultsKeys.selectedProfileId)
         let fallbackId = AccountProfile.loadProfiles().first?.id
+        // #region agent log
+        DebugLogger.log(
+            hypothesisId: "E",
+            location: "App.swift:10",
+            message: "App launch profile selection",
+            data: [
+                "selectedId": selectedId ?? "nil",
+                "fallbackId": fallbackId ?? "nil"
+            ]
+        )
+        // #endregion
         guard let profileId = selectedId ?? fallbackId,
               let profile = AccountProfile.profile(withId: profileId) else {
+            // #region agent log
+            DebugLogger.log(
+                hypothesisId: "E",
+                location: "App.swift:19",
+                message: "Profile not found at launch",
+                data: [
+                    "resolvedProfileId": (selectedId ?? fallbackId) ?? "nil"
+                ]
+            )
+            // #endregion
             return
         }
 
@@ -58,8 +79,30 @@ struct GitHubAccountSwitcherApp: App {
             try AccountSwitcher.switchTo(profile)
             selectedProfileId = profile.id
             lastError = nil
+            // #region agent log
+            DebugLogger.log(
+                hypothesisId: "E",
+                location: "App.swift:63",
+                message: "Switch completed",
+                data: [
+                    "profileId": profile.id
+                ],
+                runId: "run2"
+            )
+            // #endregion
         } catch {
             lastError = error.localizedDescription
+            // #region agent log
+            DebugLogger.log(
+                hypothesisId: "E",
+                location: "App.swift:70",
+                message: "Switch failed",
+                data: [
+                    "error": error.localizedDescription
+                ],
+                runId: "run2"
+            )
+            // #endregion
         }
     }
 }

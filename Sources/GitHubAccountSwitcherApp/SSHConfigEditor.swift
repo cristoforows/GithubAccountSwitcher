@@ -21,9 +21,33 @@ enum SSHConfigEditor {
     static func updateIdentityFile(forHosts hosts: [String], identityFilePath: String) throws {
         let fileURL = try sshConfigURL()
         let expandedIdentityPath = expandTilde(in: identityFilePath)
+        // #region agent log
+        DebugLogger.log(
+            hypothesisId: "D",
+            location: "SSHConfigEditor.swift:24",
+            message: "SSH config update start",
+            data: [
+                "path": fileURL.path,
+                "hosts": hosts.joined(separator: ","),
+                "identityPath": expandedIdentityPath
+            ]
+        )
+        // #endregion
 
         if !FileManager.default.fileExists(atPath: fileURL.path) {
             try createSSHConfig(at: fileURL, forHosts: hosts, identityFilePath: expandedIdentityPath)
+            // #region agent log
+            DebugLogger.log(
+                hypothesisId: "D",
+                location: "SSHConfigEditor.swift:31",
+                message: "SSH config created",
+                data: [
+                    "path": fileURL.path,
+                    "hosts": hosts.joined(separator: ",")
+                ],
+                runId: "run2"
+            )
+            // #endregion
             return
         }
 
@@ -42,6 +66,18 @@ enum SSHConfigEditor {
 
         do {
             try updated.content.write(to: fileURL, atomically: true, encoding: .utf8)
+            // #region agent log
+            DebugLogger.log(
+                hypothesisId: "D",
+                location: "SSHConfigEditor.swift:49",
+                message: "SSH config updated",
+                data: [
+                    "path": fileURL.path,
+                    "didUpdate": updated.didUpdate ? "true" : "false"
+                ],
+                runId: "run2"
+            )
+            // #endregion
         } catch {
             throw SSHConfigEditorError.writeFailed(error.localizedDescription)
         }
